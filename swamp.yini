@@ -1,0 +1,14 @@
+name: MSDF Font example
+
+extension: sw
+
+artifact: {
+	directory: lily/bin
+	extension: lily
+}
+
+assets_dir: assets/
+
+dependencies: {
+	lily: "0.3.31"
+}
