@@ -10,5 +10,5 @@ artifact: {
 assets_dir: assets/
 
 dependencies: {
-	lily: "0.3.31"
+	lily: "0.3.32"
 }
