@@ -30,6 +30,15 @@ const GLYPH_QUAD_INDICES: Block<U16; 6> = [
 ]
 
 struct ExampleRender {
+
+    // background things
+    background_pipeline: wgpu::RenderPipelineHandle
+    background_pipeline_layout: wgpu::PipelineLayoutHandle
+    background_bind_group_layout: wgpu::BindGroupLayoutHandle
+    background_bind_group: wgpu::BindGroupHandle
+
+
+
     font_atlas_texture: wgpu::TextureHandle
     font_atlas_texture_view: wgpu::TextureViewHandle
 
@@ -50,6 +59,36 @@ struct ExampleRender {
 
 impl ExampleRender {
     fn new() -> ExampleRender {
+
+        // Background layout and pipeline
+        background_bind_group_layout := wgpu::create_bind_group_layout([
+            { binding: 0, ty: Texture },
+            { binding: 1, ty: Sampler }
+        ], 'background bind group layout')
+
+        background_pipeline_layout := wgpu::create_pipeline_layout([background_bind_group_layout], 'background pipeline layout')
+
+        empty_vertex_layouts: [wgpu::VertexBufferLayout; 0] = []
+        background_pipeline := wgpu::create_render_pipeline(background_pipeline_layout, empty_vertex_layouts, @shaders/fullscreen_triangle.wgsl, Alpha, Back, false, 'background pipeline')
+
+        background_sampler_config := wgpu::SamplerConfig {
+            address_mode: ClampToEdge
+            mag_filter: Linear
+            min_filter: Linear
+        }
+
+        // Background texture, sampler and bind group
+        background_texture := wgpu::create_texture_png(@images/water_lily_2018.png, Rgba8Unorm, RenderAndSample, 'background texture')
+        background_texture_view := wgpu::create_texture_view(background_texture, 'background texture view')
+
+        background_sampler := wgpu::create_sampler(background_sampler_config, 'background sampler')
+        background_bind_group := wgpu::create_bind_group(background_pipeline_layout, [
+            TextureView(background_texture_view),
+            Sampler(background_sampler)
+        ], 'background bind group')
+
+
+        // Font
         font_atlas_texture := wgpu::create_texture_png(@fonts/example.png, Rgba8Unorm, RenderAndSample, 'font atlas')
         font_atlas_texture_view := wgpu::create_texture_view(font_atlas_texture, 'font atlas view')
 
@@ -138,6 +177,12 @@ impl ExampleRender {
 
         {
             bm_font: fnt.load()
+
+            background_pipeline: background_pipeline
+            background_pipeline_layout: background_pipeline_layout
+            background_bind_group_layout: background_bind_group_layout
+            background_bind_group: background_bind_group
+
             font_atlas_texture: font_atlas_texture
             font_atlas_texture_view: font_atlas_texture_view
 
@@ -156,7 +201,7 @@ impl ExampleRender {
 
     #[host_call]
     fn render(mut self, sim: ExampleSimulation) {
-        normalized_int_time := sim.time % 628
+        normalized_int_time := sim.time % 62800
         normalized_float_time := (normalized_int_time.float() * 0.1)
 
         // Build glyph instance data by iterating the string — atlas is 248×237 px (from .fnt scaleW/scaleH)
@@ -166,13 +211,13 @@ impl ExampleRender {
         mut instances: Block<GlyphInstance; 32>
         mut glyph_count := 0
         mut pen_x := 40.0
-        pen_y := 380.0
+        pen_y := 300.0
 
-        cool_factor :=(((normalized_float_time / 4.0).cos() + 2.0)/ 2.0) * 4.0
+        cool_factor := 0.6 + (((normalized_float_time * 0.15 ).cos() + 1.0) * 0.5) * 4.0
         factor_x := cool_factor
         factor_y := cool_factor
 
-        codepoints: Vec<Char; 32> = "Hello Lily2D!".chars() // we call chars() since we want the Codepoint (Unicode) instead of a U8
+        codepoints: Vec<Char; 32> = "#Hello Lily2D!".chars() // we call chars() since we want the Codepoint (Unicode) instead of a U8
 
         for idx, codepoint in codepoints {
             g := .bm_font.glyphs[codepoint]
@@ -182,10 +227,12 @@ impl ExampleRender {
             vh := g.height.float().div(atlas_h)
             dst_x := pen_x + g.x_offset.float() 
             dst_y := pen_y - g.y_offset.float() * factor_y // Font assumes y going down, so we invert it
-            modified_y := normalized_float_time //+ idx.float()).sin() * 5.0
+            modified_y := (normalized_float_time + idx.float()).sin() * 5.0
             fun_y := dst_y - modified_y
-            modified_color := ((normalized_float_time + idx.float()).cos() + 1.0 ) * 0.5
-            color_factor := 1.0 - modified_color
+            modified_intensity := 0.3 + ((normalized_float_time * 0.4 + idx.float() * 0.5).cos() + 1.0 ) * 0.7
+            alpha := 
+                | idx != 0 -> 1.0 
+                | _ -> 0.4
             instances[glyph_count] = GlyphInstance {
                 dst_rect: Vec4f { 
                     x: dst_x
@@ -194,7 +241,7 @@ impl ExampleRender {
                     w: -g.height.float() * factor_y // Font assumes y going down, so we invert it
                 }
                 uv_rect: Vec4f { x: u, y: v, z: uw, w: vh }
-                color: Vec4f { x: 1.0, y: color_factor, z: 1.0 - color_factor, w: 1.0 }
+                color: Vec4f { x: modified_intensity, y: 0.1, z: modified_intensity * 0.3, w: alpha }
             }
             glyph_count += 1
             pen_x = pen_x + g.x_advance.float() * factor_x
@@ -207,6 +254,13 @@ impl ExampleRender {
             mut render_pass: wgpu::RenderPass
             render_pass.depth_attachment = -1
 
+            // Render Background as a fullscreen triangle
+            // No vertex buffer is needed, since it calculates the corners in the shader.
+            render_pass.set_pipeline(.background_pipeline)
+            render_pass.set_bind_group( group_index: 0, bind_group: .background_bind_group )
+            render_pass.draw( [0, 3], [0, 1] )
+
+            // MSDF Font
             render_pass.set_pipeline(.glyph_pipeline)
             render_pass.set_bind_group( group_index: 0, bind_group: .glyph_bind_group )
             render_pass.set_vertex_buffer( slot: 0, vertex_buffer: .glyph_quad_vertices )
