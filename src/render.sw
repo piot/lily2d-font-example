@@ -165,8 +165,12 @@ impl ExampleRender {
 
         mut instances: Block<GlyphInstance; 32>
         mut glyph_count := 0
-        mut pen_x := 140.0
-        pen_y := 280.0
+        mut pen_x := 40.0
+        pen_y := 380.0
+
+        cool_factor :=(((normalized_float_time / 4.0).cos() + 2.0)/ 2.0) * 4.0
+        factor_x := cool_factor
+        factor_y := cool_factor
 
         codepoints: Vec<Char; 32> = "Hello Lily2D!".chars() // we call chars() since we want the Codepoint (Unicode) instead of a U8
 
@@ -176,19 +180,24 @@ impl ExampleRender {
             v := g.y.float().div(atlas_h)
             uw := g.width.float().div(atlas_w)
             vh := g.height.float().div(atlas_h)
-            dst_x := pen_x + g.x_offset.float()
-            dst_y := pen_y - g.y_offset.float() // Font assumes y going down, so we invert it
-            modified_y := (normalized_float_time + idx.float()).sin() * 5.0
+            dst_x := pen_x + g.x_offset.float() 
+            dst_y := pen_y - g.y_offset.float() * factor_y // Font assumes y going down, so we invert it
+            modified_y := normalized_float_time //+ idx.float()).sin() * 5.0
             fun_y := dst_y - modified_y
             modified_color := ((normalized_float_time + idx.float()).cos() + 1.0 ) * 0.5
             color_factor := 1.0 - modified_color
             instances[glyph_count] = GlyphInstance {
-                dst_rect: Vec4f { x: dst_x, y: fun_y, z: g.width.float(), w: -g.height.float() } // Font assumes y going down, so we invert it
+                dst_rect: Vec4f { 
+                    x: dst_x
+                    y: fun_y
+                    z: g.width.float() * factor_x
+                    w: -g.height.float() * factor_y // Font assumes y going down, so we invert it
+                }
                 uv_rect: Vec4f { x: u, y: v, z: uw, w: vh }
                 color: Vec4f { x: 1.0, y: color_factor, z: 1.0 - color_factor, w: 1.0 }
             }
             glyph_count += 1
-            pen_x = pen_x + g.x_advance.float()
+            pen_x = pen_x + g.x_advance.float() * factor_x
         }
 
         .glyph_instance_buffer.write(instances)
