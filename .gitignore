@@ -3,3 +3,4 @@ assets/bin
 scripts
 /.sprout-vendor/lily
 /sprout.lock
+/lily/bin
