@@ -19,4 +19,8 @@ msdf-bmfont --reuse -o assets/fonts/example.png -m 512,256 -s 42 -r 3 -p 1 -t ms
 - [msdfgen (written in C)](https://github.com/Chlumsky/msdfgen)
 - [Perfecting anti-aliasing on signed distance functions](https://blog.pkh.me/p/44-perfecting-anti-aliasing-on-signed-distance-functions.html)
 
+## Art used
+
+- [Water Lily 2018 by Susan Young](https://commons.wikimedia.org/wiki/File:Water_Lily_2018.jpg) (public domain)
+
 Copyright (c) 2026 Peter Bjorklund. Feel free to use the code in your projects!
